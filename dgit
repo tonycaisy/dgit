@@ -1,0 +1,164 @@
+#!/usr/bin/bash
+
+function dgit_init() {
+    if [ ! -d ".git" ]; then
+        echo "Please first initialize git repository"
+        exit 1
+    fi
+    if [ -d ".dgit" ]; then
+        echo "dgit already initialized"
+        exit 1
+    fi
+    mkdir .dgit
+    echo ".dgit/" >> .gitignore
+    echo "Initialize empty dgit repository in $(pwd)/.dgit/"
+}
+
+function dgit_check_init() {
+    if [ ! -d ".dgit" ]; then
+        echo "Please first initialize dgit"
+        exit 1
+    fi
+}
+
+function dgit_log() {
+    function dgit_log_print_help_and_exit() {
+        echo "Usage: dgit log [--name <log_name>] [bash_file]"
+        exit 1
+    }
+
+    # Check if dgit is initialized
+    dgit_check_init
+
+    # Get the log dir name
+    timestamp=$(date +%s)
+    log_name="anonymous"
+    if [ "$2" == "--name" ]; then
+        if [ -z "$3" ]; then
+            dgit_log_print_help_and_exit
+        fi
+        if [[ $3 == *" "* ]]; then
+            echo "Log name cannot contain spaces"
+            exit 1
+        fi
+        log_name="$3"
+        shift 2
+    fi
+    log_dir=".dgit/${timestamp}_$log_name"
+
+    # Check if the bash file exists
+    bash_file=$2
+    function check_file() {
+        if [[ ! $1 =~ .*\.sh ]]; then
+            echo "You must provide a bash file ending with .sh"
+            exit 1
+        fi
+        if [ ! -f $1 ]; then
+            echo "File $1 does not exist"
+            exit 1
+        fi
+    }
+    check_file $bash_file
+
+    # Record the git head
+    git_head=$(git rev-parse HEAD)
+    if [ $(git status --porcelain | wc -l) -ne 0 ]; then
+        git add . > /dev/null
+        git commit -m "dgit auto commit for logging" > /dev/null
+        git_head=$(git rev-parse HEAD)
+        git reset HEAD~1 > /dev/null
+    fi
+
+    # Create the log dir
+    mkdir $log_dir
+    if [ ! -d $log_dir ]; then
+        echo "Failed to create log directory: $log_dir"
+        exit 1
+    fi
+    cp $bash_file $log_dir
+    meta_file="$log_dir/.dgit_meta"
+    echo "git_commit: $git_head" > $meta_file
+    echo "timestamp: $timestamp" >> $meta_file
+    echo "log_name: $log_name" >> $meta_file
+    echo "bash_file: $bash_file" >> $meta_file
+
+    # Register the interrupt handler
+    ready_to_exit=0
+    function interrupt_handler() {
+        if [ $ready_to_exit -eq 1 ]; then
+            kill -9 $bash_pid
+        fi
+    }
+    trap interrupt_handler SIGINT
+
+    # Start the strace
+    strace -f -y -s 65535 -e write -o $log_dir/strace.log bash $bash_file &
+    strace_pid=$! 
+    while [ -z "$bash_pid" ] && kill -0 $strace_pid; do
+        bash_pid=$(ps -ef | grep -E ".* $strace_pid .* bash $bash_file" | grep -v grep | awk '{print $2}' | grep -v $strace_pid)
+    done
+
+    # Monitor the strace output
+    strace_file="$log_dir/strace.log"
+    echo "output_files:" >> $meta_file
+    function strace_monitor() {
+        tail -n +1 --pid=$strace_pid -F $strace_file 2> /dev/null | while read -r line; do
+            if [[ $line =~ [0-9]+*"write"* ]]; then
+                file=$(echo $line | grep -m 1 -oE "<[^>]*>" | sed -E "s/[<>]//g")
+                content=$(echo $line | sed "s/^[^\"]*\"\(.*\)\"[^\"]*$/\1/")
+                if [ -z "$file" ]; then
+                    continue
+                fi
+                if [ -z "$content" ]; then
+                    continue
+                fi
+                if [[ $file =~ "/dev/pts"* ]]; then
+                    printf "$content" >> $log_dir/stdout.log
+                elif [[ $file =~ "$(pwd)"* ]]; then
+                    if [ -z $(echo "$output_files" | grep -F "$file") ]; then
+                        output_files="$output_files"$'\n'"$file"
+                        echo $file >> $meta_file
+                    fi
+                fi
+            fi
+        done
+    }
+    strace_monitor &
+    monitor_pid=$! 
+    while [ -z "$monitor_tail_pid" ] && kill -0 $monitor_pid; do
+        monitor_tail_pid=$(ps -ef | grep -E ".* $monitor_pid .* tail.*" | grep -v grep | awk '{print $2}')
+    done
+
+    # Wait for the strace to finish
+    ready_to_exit=1
+    wait $strace_pid
+    wait $monitor_pid
+    trap - SIGINT
+
+    # Parse the strace log
+    echo -e "\n\033[0;32mparsing strace log ...\033[0m"
+    for file in $(cat "$log_dir/.dgit_meta" | grep -v ":"); do
+        new_file=$(echo $file | sed "s|$(pwd)|$log_dir|")
+        mkdir -p $(dirname $new_file)
+        cp --reflink=auto $file $new_file
+        chmod 444 $new_file
+    done
+    echo -e "\033[0;32mparsing strace log done\033[0m"
+}
+
+function dgit_print_help_and_exit() {
+    echo "Usage: dgit init|log"
+    exit 1
+}
+
+if [ "$#" -eq 0 ]; then
+    dgit_print_help_and_exit
+fi
+
+if [ "$1" == "init" ]; then
+    dgit_init
+elif [ "$1" == "log" ]; then
+    dgit_log $@
+else
+    dgit_print_help_and_exit
+fi
