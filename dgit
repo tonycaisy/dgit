@@ -185,17 +185,37 @@ function dgit_ls() {
     echo "-------------------------------------------------------------------------------------"
 }
 
+function _dgit_get_log_dir() {
+    log_dir=$(ls -1 --color=never $DGIT_DIR/ | grep -E "^[0-9]+_$1$" | sort -r | head -n 1)
+    echo $log_dir
+}
+
+function _dgit_get_log_dir_or_exit() {
+    log_dir=$(_dgit_get_log_dir $1)
+    if [ -z "$log_dir" ]; then
+        echo "Log name $1 not found"
+        exit 1
+    fi
+    echo $log_dir
+}
+
+function dgit_stdout() {
+    _dgit_check_init
+    if [ -z "$2" ]; then
+        echo "Usage: dgit stdout <log_name>"
+        exit 1
+    fi
+    log_dir=$(_dgit_get_log_dir_or_exit $2)
+    cat "$DGIT_DIR/$log_dir/$DGIT_OUTPUT_DIR/$DGIT_STDOUT_FILE"
+}
+
 function dgit_checkout() {
     _dgit_check_init
     if [ -z "$2" ]; then
         echo "Usage: dgit checkout <log_name>"
         exit 1
     fi
-    log_dir=$(ls -1 --color=never $DGIT_DIR/ | grep -E "^[0-9]+_$2$" | sort -r | head -n 1)
-    if [ -z "$log_dir" ]; then
-        echo "Log name $2 not found"
-        exit 1
-    fi
+    log_dir=$(_dgit_get_log_dir_or_exit $2)
     commit_hash=$(_dgit_get_meta $log_dir COMMIT)
     if [ -z "$commit_hash" ]; then
         echo "Failed to find commit hash"
@@ -212,7 +232,7 @@ function dgit_checkout() {
 }
 
 function dgit_print_help_and_exit() {
-    echo "Usage: dgit init|log|ls|checkout"
+    echo "Usage: dgit init|log|ls|stdout|checkout"
     exit 1
 }
 
@@ -226,6 +246,8 @@ elif [ "$1" == "log" ]; then
     dgit_log "$@"
 elif [ "$1" == "ls" ]; then
     dgit_ls
+elif [ "$1" == "stdout" ]; then
+    dgit_stdout "$@"
 elif [ "$1" == "checkout" ]; then
     dgit_checkout "$@"
 else
