@@ -1,0 +1,41 @@
+#!/usr/bin/bash
+
+if [ -z "$(which git)" ]; then
+    echo "Git is not found"
+    echo "Install it now? (y/n)"
+    read -r install_git
+    if [[ "$install_git" =~ [yY] ]]; then
+        echo "sudo apt install git-all"
+        sudo sudo apt install git-all
+    else
+        echo "Git is required by dgit"
+        echo "Exiting..."
+        exit 1
+    fi
+fi
+
+if [ -z "$(which strace)" ]; then
+    echo "Strace is not found"
+    echo "Install it now? (y/n)"
+    read -r install_strace
+    if [[ "$install_strace" =~ [yY] ]]; then
+        echo "apt-get install strace"
+        sudo apt-get install strace
+    else
+        echo "Strace is required by dgit"
+        echo "Exiting..."
+        exit 1
+    fi
+fi
+
+if [ ! -f "dgit" ]; then
+    echo "Can't find dgit in current directory"
+    echo "Please check if you are in dgit repository"
+    echo "Exiting..."
+    exit 1
+fi
+
+echo "Adding dgit to PATH"
+export PATH=$(pwd):$PATH
+echo "export PATH=$(pwd):\$PATH" >> ~/.bashrc
+echo "Done"
