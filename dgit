@@ -234,6 +234,10 @@ function dgit_command() {
         exit 1
     fi
     log_dir=$(_dgit_get_log_dir_or_exit $2)
+    bash_file=$(_dgit_get_meta $log_dir BASH_NAME)
+    echo "-------------------------------------------------------------------------------------"
+    echo "Bash file: $bash_file"
+    echo "-------------------------------------------------------------------------------------"
     cat "$DGIT_DIR/$log_dir/$DGIT_COMMAND_FILE"
 }
 
