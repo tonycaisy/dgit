@@ -75,7 +75,7 @@ function dgit_log() {
         echo "Failed to create log directory: $log_dir"
         exit 1
     fi
-    cp $bash_file $log_dir
+    cp $bash_file $log_dir/dgit_command.sh
     meta_file="$log_dir/.dgit_meta"
     echo "git_commit: $git_head" > $meta_file
     echo "timestamp: $timestamp" >> $meta_file
@@ -92,14 +92,14 @@ function dgit_log() {
     trap interrupt_handler SIGINT
 
     # Start the strace
-    strace -f -y -s 65535 -e write -o $log_dir/strace.log bash $bash_file &
+    strace_file="$log_dir/dgit_strace.log"
+    strace -f -y -s 65535 -e write -o $strace_file bash $bash_file &
     strace_pid=$! 
     while [ -z "$bash_pid" ] && kill -0 $strace_pid; do
         bash_pid=$(ps -ef | grep -E ".* $strace_pid .* bash $bash_file" | grep -v grep | awk '{print $2}' | grep -v $strace_pid)
     done
 
     # Monitor the strace output
-    strace_file="$log_dir/strace.log"
     echo "output_files:" >> $meta_file
     function strace_monitor() {
         tail -n +1 --pid=$strace_pid -F $strace_file 2> /dev/null | while read -r line; do
@@ -165,7 +165,7 @@ function dgit_ls() {
 }
 
 function dgit_print_help_and_exit() {
-    echo "Usage: dgit init|log"
+    echo "Usage: dgit init|log|ls"
     exit 1
 }
 
