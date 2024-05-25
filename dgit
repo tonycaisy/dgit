@@ -146,6 +146,24 @@ function dgit_log() {
     echo -e "\033[0;32mparsing strace log done\033[0m"
 }
 
+function dgit_ls() {
+    dgit_check_init
+    echo "--------------------------------------------------------------"
+    echo -e "Timestamp\t\t\t| Log Name\t| Bash File"
+    echo "--------------------------------------------------------------"
+    for log_dir in $(ls .dgit/); do
+        meta_file=".dgit/$log_dir/.dgit_meta"
+        if [ -f $meta_file ]; then
+            timestamp=$(cat $meta_file | grep "timestamp" | sed "s/timestamp: //")
+            timestamp=$(date -d @$timestamp)
+            log_name=$(cat $meta_file | grep "log_name" | sed "s/log_name: //")
+            bash_file=$(cat $meta_file | grep "bash_file" | sed "s/bash_file: //")
+            echo -e "$timestamp\t| $log_name\t| $bash_file"
+        fi
+    done
+    echo "--------------------------------------------------------------"
+}
+
 function dgit_print_help_and_exit() {
     echo "Usage: dgit init|log"
     exit 1
@@ -159,6 +177,8 @@ if [ "$1" == "init" ]; then
     dgit_init
 elif [ "$1" == "log" ]; then
     dgit_log $@
+elif [ "$1" == "ls" ]; then
+    dgit_ls
 else
     dgit_print_help_and_exit
 fi
