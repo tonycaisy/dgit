@@ -7,6 +7,7 @@ DGIT_META_TIMESTAMP="timestamp"
 DGIT_META_LOG_NAME="log_name"
 DGIT_META_BASH_NAME="bash_name"
 DGIT_COMMAND_FILE="dgit_command.sh"
+DGIT_OUTPUT_DIR="output"
 DGIT_STDOUT_FILE="dgit_stdout.log"
 
 function dgit_init() {
@@ -23,7 +24,7 @@ function dgit_init() {
     echo "Initialize empty dgit repository in $(pwd)/$DGIT_DIR/"
 }
 
-function dgit_check_init() {
+function _dgit_check_init() {
     if [ ! -d "$DGIT_DIR" ]; then
         echo "Please first initialize dgit"
         exit 1
@@ -37,7 +38,7 @@ function dgit_log() {
     }
 
     # Check if dgit is initialized
-    dgit_check_init
+    _dgit_check_init
 
     # Get the log dir name
     timestamp=$(date +%s)
@@ -71,6 +72,11 @@ function dgit_log() {
 
     # Record the git head
     git_head=$(git rev-parse HEAD)
+    if [[ ! $git_head =~ ^[a-z0-9]+$ ]]; then
+        echo "Failed to get git head"
+        echo "Have you made your first commit?"
+        exit 1
+    fi
     if [ $(git status --porcelain | wc -l) -ne 0 ]; then
         git add . > /dev/null
         git commit -m "dgit auto commit for logging" > /dev/null
@@ -110,6 +116,7 @@ function dgit_log() {
 
     # Monitor the strace output
     echo "output_files:" >> $meta_file
+    mkdir -p $log_dir/$DGIT_OUTPUT_DIR
     function strace_monitor() {
         tail -n +1 --pid=$strace_pid -F $strace_file 2> /dev/null | while read -r line; do
             if [[ $line == [0-9]*write* ]]; then
@@ -122,7 +129,7 @@ function dgit_log() {
                     continue
                 fi
                 if [[ $file == "/dev/pts"* ]]; then
-                    printf "$content" >> $log_dir/$DGIT_STDOUT_FILE
+                    printf "$content" >> $log_dir/$DGIT_OUTPUT_DIR/$DGIT_STDOUT_FILE
                 elif [[ $file == $(pwd)* ]]; then
                     if [ -z $(echo "$output_files" | grep -F "$file") ]; then
                         output_files="$output_files"$'\n'"$file"
@@ -147,7 +154,7 @@ function dgit_log() {
     # Parse the strace log
     echo -e "\n\033[0;32mparsing strace log ...\033[0m"
     for file in $(cat "$log_dir/$DGIT_META_FILE" | grep -v ":"); do
-        new_file=$(echo $file | sed "s|$(pwd)|$log_dir|")
+        new_file=$(echo $file | sed "s|$(pwd)|$log_dir/$DGIT_OUTPUT_DIR|")
         mkdir -p $(dirname $new_file)
         cp --reflink=auto $file $new_file
         chmod 444 $new_file
@@ -155,28 +162,57 @@ function dgit_log() {
     echo -e "\033[0;32mparsing strace log done\033[0m"
 }
 
+function _dgit_get_meta() {
+    meta_file="$DGIT_DIR/$1/$DGIT_META_FILE"
+    meta_item=DGIT_META_$2
+    echo "$(cat $meta_file | grep "${!meta_item}" | sed "s/${!meta_item}: //")"
+}
+
 function dgit_ls() {
-    dgit_check_init
+    _dgit_check_init
     echo "-------------------------------------------------------------------------------------"
     echo -e "Timestamp\t\t| Log Name\t| Commit\t| Bash File"
     echo "-------------------------------------------------------------------------------------"
-    for log_dir in $(ls $DGIT_DIR/); do
-        meta_file="$DGIT_DIR/$log_dir/$DGIT_META_FILE"
-        if [ -f $meta_file ]; then
-            timestamp=$(cat $meta_file | grep "$DGIT_META_TIMESTAMP" | sed "s/$DGIT_META_TIMESTAMP: //")
-            timestamp=$(date -d @$timestamp +"%Y-%m-%d %H:%M:%S")
-            log_name=$(cat $meta_file | grep "$DGIT_META_LOG_NAME" | sed "s/$DGIT_META_LOG_NAME: //")
-            commit_hash=$(cat $meta_file | grep "$DGIT_META_COMMIT" | sed "s/$DGIT_META_COMMIT: //" | head -c 8)
-            bash_file=$(cat $meta_file | grep "$DGIT_META_BASH_NAME" | sed "s/$DGIT_META_BASH_NAME: //")
-            bash_command=$(cat "$DGIT_DIR/$log_dir/$DGIT_COMMAND_FILE" | head -n 1)
-            echo -e "$timestamp\t| $log_name\t| $commit_hash\t| $bash_file: $bash_command (...)"
-        fi
+    for log_dir in $(ls -1 $DGIT_DIR/); do
+        timestamp=$(_dgit_get_meta $log_dir TIMESTAMP)
+        timestamp=$(date -d @$timestamp +"%Y-%m-%d %H:%M:%S")
+        log_name=$(_dgit_get_meta $log_dir LOG_NAME)
+        commit_hash=$(_dgit_get_meta $log_dir COMMIT | head -c 8)
+        bash_file=$(_dgit_get_meta $log_dir BASH_NAME)
+        bash_command=$(cat "$DGIT_DIR/$log_dir/$DGIT_COMMAND_FILE" | head -n 1)
+        echo -e "$timestamp\t| $log_name\t| $commit_hash\t| $bash_file: $bash_command (...)"
     done
     echo "-------------------------------------------------------------------------------------"
 }
 
+function dgit_checkout() {
+    _dgit_check_init
+    if [ -z "$2" ]; then
+        echo "Usage: dgit checkout <log_name>"
+        exit 1
+    fi
+    log_dir=$(ls -1 --color=never $DGIT_DIR/ | grep -E "^[0-9]+_$2$" | sort -r | head -n 1)
+    if [ -z "$log_dir" ]; then
+        echo "Log name $2 not found"
+        exit 1
+    fi
+    commit_hash=$(_dgit_get_meta $log_dir COMMIT)
+    if [ -z "$commit_hash" ]; then
+        echo "Failed to find commit hash"
+        exit 1
+    fi
+    git checkout $commit_hash
+    if [ $? -ne 0 ]; then
+        echo "Failed to checkout commit $commit_hash"
+        exit 1
+    fi
+    timestamp=$(_dgit_get_meta $log_dir TIMESTAMP)
+    timestamp=$(date -d @$timestamp +"%Y-%m-%d %H:%M:%S")
+    echo "Checkout log $2 at $timestamp"
+}
+
 function dgit_print_help_and_exit() {
-    echo "Usage: dgit init|log|ls"
+    echo "Usage: dgit init|log|ls|checkout"
     exit 1
 }
 
@@ -190,6 +226,8 @@ elif [ "$1" == "log" ]; then
     dgit_log "$@"
 elif [ "$1" == "ls" ]; then
     dgit_ls
+elif [ "$1" == "checkout" ]; then
+    dgit_checkout "$@"
 else
     dgit_print_help_and_exit
 fi
