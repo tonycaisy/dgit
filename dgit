@@ -6,6 +6,7 @@ DGIT_META_COMMIT="git_commit"
 DGIT_META_TIMESTAMP="timestamp"
 DGIT_META_LOG_NAME="log_name"
 DGIT_META_BASH_NAME="bash_name"
+DGIT_META_DESCRIPTION="description"
 DGIT_COMMAND_FILE="dgit_command.sh"
 DGIT_OUTPUT_DIR="dgit_output"
 DGIT_STDOUT_FILE="dgit_stdout.log"
@@ -41,7 +42,7 @@ function dgit_log() {
     _dgit_check_init
 
     if [ "$#" -lt 3 ]; then
-        echo "Usage: dgit log <log_name> [bash_file]"
+        echo "Usage: dgit log <log_name> <bash_file> [<description>]"
         exit 1
     fi
     log_name=$2
@@ -49,7 +50,7 @@ function dgit_log() {
     timestamp=$(date +%s)
 
     # Get the log dir name
-    if [[ ! $3 =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+    if [[ ! $log_name =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
         echo "Log name must be a valid bash variable name"
         exit 1
     fi
@@ -60,17 +61,14 @@ function dgit_log() {
     log_dir="$DGIT_DIR/${timestamp}_$log_name"
 
     # Check if the bash file exists
-    function check_file() {
-        if [[ ! $1 == *.sh ]]; then
-            echo "You must provide a bash file ending with .sh"
-            exit 1
-        fi
-        if [ ! -f $1 ]; then
-            echo "File $1 does not exist"
-            exit 1
-        fi
-    }
-    check_file $bash_file
+    if [[ ! $bash_file == *.sh ]]; then
+        echo "You must provide a bash file ending with .sh"
+        exit 1
+    fi
+    if [ ! -f $bash_file ]; then
+        echo "File $bash_file does not exist"
+        exit 1
+    fi
 
     # Record the git head
     git_head=$(git rev-parse HEAD)
@@ -98,6 +96,9 @@ function dgit_log() {
     echo "$DGIT_META_TIMESTAMP: $timestamp" >> $meta_file
     echo "$DGIT_META_LOG_NAME: $log_name" >> $meta_file
     echo "$DGIT_META_BASH_NAME: $bash_file" >> $meta_file
+    if [ ! -z "$4" ]; then
+        echo "$DGIT_META_DESCRIPTION: $4" >> $meta_file
+    fi
 
     # Register the interrupt handler
     ready_to_exit=0
@@ -173,7 +174,7 @@ function _dgit_get_meta() {
 function dgit_ls() {
     _dgit_check_init
     echo "-------------------------------------------------------------------------------------"
-    echo -e "Timestamp\t\t| Log Name\t| Commit\t| Bash File"
+    echo -e "Timestamp\t\t| Log Name\t| Commit\t| Bash File\t| Description"
     echo "-------------------------------------------------------------------------------------"
     for log_dir in $(ls -1 $DGIT_DIR/); do
         timestamp=$(_dgit_get_meta $log_dir TIMESTAMP)
@@ -181,8 +182,8 @@ function dgit_ls() {
         log_name=$(_dgit_get_meta $log_dir LOG_NAME)
         commit_hash=$(_dgit_get_meta $log_dir COMMIT | head -c 8)
         bash_file=$(_dgit_get_meta $log_dir BASH_NAME)
-        bash_command=$(cat "$DGIT_DIR/$log_dir/$DGIT_COMMAND_FILE" | head -n 1)
-        echo -e "$timestamp\t| $log_name\t| $commit_hash\t| $bash_file: $bash_command (...)"
+        description=$(_dgit_get_meta $log_dir DESCRIPTION)
+        echo -e "$timestamp\t| $log_name\t| $commit_hash\t| $bash_file\t| $description"
     done
     echo "-------------------------------------------------------------------------------------"
 }
