@@ -7,7 +7,7 @@ DGIT_META_TIMESTAMP="timestamp"
 DGIT_META_LOG_NAME="log_name"
 DGIT_META_BASH_NAME="bash_name"
 DGIT_COMMAND_FILE="dgit_command.sh"
-DGIT_OUTPUT_DIR="output"
+DGIT_OUTPUT_DIR="dgit_output"
 DGIT_STDOUT_FILE="dgit_stdout.log"
 
 function dgit_init() {
@@ -31,33 +31,35 @@ function _dgit_check_init() {
     fi
 }
 
-function dgit_log() {
-    function dgit_log_print_help_and_exit() {
-        echo "Usage: dgit log [--name <log_name>] [bash_file]"
-        exit 1
-    }
+function _dgit_get_log_dir() {
+    log_dir=$(ls -1 --color=never $DGIT_DIR/ | grep -E "^[0-9]+_$1$" | sort -r | head -n 1)
+    echo $log_dir
+}
 
+function dgit_log() {
     # Check if dgit is initialized
     _dgit_check_init
 
-    # Get the log dir name
+    if [ "$#" -lt 3 ]; then
+        echo "Usage: dgit log <log_name> [bash_file]"
+        exit 1
+    fi
+    log_name=$2
+    bash_file=$3
     timestamp=$(date +%s)
-    log_name="anonymous"
-    if [ "$2" == "--name" ]; then
-        if [ -z "$3" ]; then
-            dgit_log_print_help_and_exit
-        fi
-        if [[ ! $3 =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
-            echo "Log name must be a valid bash variable name"
-            exit 1
-        fi
-        log_name="$3"
-        shift 2
+
+    # Get the log dir name
+    if [[ ! $3 =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+        echo "Log name must be a valid bash variable name"
+        exit 1
+    fi
+    if [ ! -z "$(_dgit_get_log_dir $log_name)" ]; then
+        echo "Log name $log_name already exists"
+        exit 1
     fi
     log_dir="$DGIT_DIR/${timestamp}_$log_name"
 
     # Check if the bash file exists
-    bash_file=$2
     function check_file() {
         if [[ ! $1 == *.sh ]]; then
             echo "You must provide a bash file ending with .sh"
@@ -183,11 +185,6 @@ function dgit_ls() {
         echo -e "$timestamp\t| $log_name\t| $commit_hash\t| $bash_file: $bash_command (...)"
     done
     echo "-------------------------------------------------------------------------------------"
-}
-
-function _dgit_get_log_dir() {
-    log_dir=$(ls -1 --color=never $DGIT_DIR/ | grep -E "^[0-9]+_$1$" | sort -r | head -n 1)
-    echo $log_dir
 }
 
 function _dgit_get_log_dir_or_exit() {
