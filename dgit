@@ -209,6 +209,24 @@ function dgit_stdout() {
     cat "$DGIT_DIR/$log_dir/$DGIT_OUTPUT_DIR/$DGIT_STDOUT_FILE"
 }
 
+function dgit_fout() {
+    _dgit_check_init
+    prompt=-i
+    if [ "$2" == "-f" ]; then
+        prompt=
+        shift
+    fi
+    if [ -z "$2" ]; then
+        echo "Usage: dgit fout [-f] <log_name>"
+        exit 1
+    fi
+    log_dir=$(_dgit_get_log_dir_or_exit $2)
+    for file in $(cat "$DGIT_DIR/$log_dir/$DGIT_META_FILE" | grep -v ":"); do
+        stored_file=$(echo $file | sed "s|$(pwd)|$DGIT_DIR/$log_dir/$DGIT_OUTPUT_DIR|")
+        cp $prompt --reflink=auto $stored_file $file
+    done
+}
+
 function dgit_checkout() {
     _dgit_check_init
     if [ -z "$2" ]; then
@@ -232,7 +250,7 @@ function dgit_checkout() {
 }
 
 function dgit_print_help_and_exit() {
-    echo "Usage: dgit init|log|ls|stdout|checkout"
+    echo "Usage: dgit init|log|ls|stdout|fout|checkout"
     exit 1
 }
 
@@ -248,6 +266,8 @@ elif [ "$1" == "ls" ]; then
     dgit_ls
 elif [ "$1" == "stdout" ]; then
     dgit_stdout "$@"
+elif [ "$1" == "fout" ]; then
+    dgit_fout "$@"
 elif [ "$1" == "checkout" ]; then
     dgit_checkout "$@"
 else
