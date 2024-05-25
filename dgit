@@ -13,7 +13,8 @@ DGIT_STDOUT_FILE="dgit_stdout.log"
 
 function dgit_init() {
     if [ ! -d ".git" ]; then
-        echo "Please first initialize git repository"
+        echo "Not in the root of a git repository"
+        echo "Please first initialize a git repository"
         exit 1
     fi
     if [ -d "$DGIT_DIR" ]; then
@@ -216,6 +217,7 @@ function dgit_fout() {
     fi
     if [ -z "$2" ]; then
         echo "Usage: dgit fout [-f] <log_name>"
+        echo "  -f: force overwrite"
         exit 1
     fi
     log_dir=$(_dgit_get_log_dir_or_exit $2)
@@ -249,6 +251,7 @@ function dgit_checkout() {
     fi
     if [ -z "$2" ]; then
         echo "Usage: dgit checkout [-f] <log_name>"
+        echo "  -f: force overwrite"
         exit 1
     fi
     log_dir=$(_dgit_get_log_dir_or_exit $2)
@@ -273,6 +276,13 @@ function dgit_checkout() {
 
 function dgit_print_help_and_exit() {
     echo "Usage: dgit init|log|ls|stdout|fout|command|checkout"
+    echo "  init: initialize dgit, run git init first"
+    echo "  log: run a bash script, monitor and save the output"
+    echo "  ls: list all logs"
+    echo "  stdout: print the stdout of a log"
+    echo "  fout: copy the output files of a log back to the original location"
+    echo "  command: print the bash command of a log"
+    echo "  checkout: reset to the state when the log was created"
     exit 1
 }
 
