@@ -112,7 +112,7 @@ function dgit_log() {
 
     # Start the strace
     strace_file="$log_dir/dgit_strace.log"
-    strace -f -y -s 65535 -e write -o $strace_file bash $bash_file &
+    strace -f -y -s 65535 -e write,rename,renameat,renameat2 -o $strace_file bash $bash_file &
     strace_pid=$! 
     while [ -z "$bash_pid" ] && kill -0 $strace_pid; do
         bash_pid=$(ps -ef | grep -E ".* $strace_pid .* bash $bash_file" | grep -v grep | awk '{print $2}' | grep -v $strace_pid)
@@ -138,6 +138,18 @@ function dgit_log() {
                     if [ -z "$(echo "$output_files" | grep -F "$file")" ]; then
                         output_files="$output_files"$'\n'"$file"
                         echo $file >> $meta_file
+                    fi
+                fi
+            fi
+            if [[ $line == [0-9]*rename* ]]; then
+                new_file=$(echo $line | sed "s/^[^\"]*\"\([^\"]*\)\"[^\"]*\"\([^\"]*\)\"[^\"]*$/\2/")
+                if [[ ! $new_file == /* ]]; then
+                    new_file=$(pwd)/$new_file
+                fi
+                if [[ $new_file == $(pwd)* ]]; then
+                    if [ -z "$(echo "$output_files" | grep -F "$new_file")" ]; then
+                        output_files="$output_files"$'\n'"$new_file"
+                        echo $new_file >> $meta_file
                     fi
                 fi
             fi
