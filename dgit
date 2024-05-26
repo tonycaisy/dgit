@@ -124,7 +124,7 @@ function dgit_log() {
     function strace_monitor() {
         tail -n +1 --pid=$strace_pid -F $strace_file 2> /dev/null | while read -r line; do
             if [[ $line == [0-9]*write* ]]; then
-                file=$(echo $line | grep -m 1 -oE "^\d+ write\(<[^>]*>" | grep -oE "<[^>]*>" | sed "s/[<>]//g")
+                file=$(echo $line | grep -oE "^[0-9]+[[:space:]]*write\([0-9]+<[^>]*>" | grep -oE "<[^>]*>" | sed "s/[<>]//g")
                 content=$(echo $line | sed "s/^[^\"]*\"\(.*\)\"[^\"]*$/\1/")
                 if [ -z "$file" ]; then
                     continue
