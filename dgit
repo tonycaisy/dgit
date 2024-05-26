@@ -135,7 +135,7 @@ function dgit_log() {
                 if [[ $file == "/dev/pts"* ]]; then
                     printf "$content" >> $log_dir/$DGIT_OUTPUT_DIR/$DGIT_STDOUT_FILE
                 elif [[ $file == $(pwd)* ]]; then
-                    if [ -z $(echo "$output_files" | grep -F "$file") ]; then
+                    if [ -z "$(echo "$output_files" | grep -F "$file")" ]; then
                         output_files="$output_files"$'\n'"$file"
                         echo $file >> $meta_file
                     fi
