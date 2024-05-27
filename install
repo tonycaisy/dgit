@@ -15,53 +15,12 @@ if [ -z "$(which unbuffer)" ]; then
     exit 1
 fi
 
-function install_from_source() {
-    wget "$1$2"
-    tar -zvxf ${2%.tar.gz}*
-    rm $2
-    cd ${2%.tar.gz}*
-    ./configure --prefix=$home_dir/local
-    make install
-    cd ..
-    rm -rf ${2%.tar.gz}*
-}
-
 if [ -z "$(which inotifywait)" ]; then
     echo "Inotifywait is not found"
-    echo "Install it now? (y/n)"
-    read -r install_inotifywait
-    if [[ "$install_inotifywait" =~ [yY] ]]; then
-        echo "Do you have sudo access? (y/n)"
-        read -r sudo_access
-        if [[ "$sudo_access" =~ [yY] ]]; then
-            echo "sudo apt install inotify-tools"
-            sudo sudo apt install inotify-tools
-        else
-            home_dir=$(echo ~)
-            echo "Installing it to $home_dir/local"
-            mkdir -p $home_dir/local
-            export PATH=$PATH:$home_dir/local/bin
-            echo "export PATH=\$PATH:$home_dir/local/bin" >> ~/.bashrc
-            install_from_source "http://ftp.gnu.org/gnu/m4/" "m4-1.4.9.tar.gz"
-            install_from_source "http://ftp.gnu.org/gnu/autoconf/" "autoconf-2.69.tar.gz"
-            install_from_source "http://ftp.gnu.org/gnu/automake/" "automake-1.15.tar.gz"
-            install_from_source "https://ftpmirror.gnu.org/libtool/" "libtool-2.4.7.tar.gz"
-            wget https://github.com/inotify-tools/inotify-tools/archive/refs/tags/4.23.9.0.tar.gz
-            tar -zvxf 4.23.9.0.tar.gz
-            cd inotify-tools-4.23.9.0
-            ./autogen.sh
-            ./configure --prefix=$home_dir/local
-            make install
-            cd ..
-            rm -rf inotify-tools-4.23.9.0
-            rm 4.23.9.0.tar.gz
-            echo "Installed inotifywait to $home_dir/local/bin"
-        fi
-    else
-        echo "Inotifywait is required by dgit"
-        echo "Exiting..."
-        exit 1
-    fi
+    echo "Please install inotifywait via sudo apt install inotify-tools"
+    echo "                            or conda install -c conda-forge inotify-tools"
+    echo "Exiting..."
+    exit 1
 fi
 
 if [ ! -f "dgit" ]; then
