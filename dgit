@@ -157,7 +157,7 @@ function dgit_log() {
         fi
         op=$(echo $line | awk '{print $2}')
         file=$(echo $line | awk '{print $3}')
-        file=$dir/$file
+        file=$dir$file
         if [ -z "$(echo "$output_files" | grep "^$file$")" ]; then
             output_files="$output_files"$'\n'"$file"
             echo $file >> $meta_file
