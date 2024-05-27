@@ -31,6 +31,7 @@ git clone https://github.com/tonycaisy/dgit.git
 cd dgit
 ./install
 ```
+Then restart the terminal so that the ``dgit`` command is available.
 
 ## Usage
 
