@@ -18,7 +18,7 @@ On running this command, the script ``<bash_file>`` will be started as if runnin
 
 These data can be referenced later by ``<log_name>``. Even if you modify some codes or overwrite some output files later, all records can be recovered with ease.
 
-**Saving Output.** The basic idea of ``dgit`` is to monitor the system call ``write`` made by the bash script using ``strace``. It greps the contents of the standard output and standard error, and saves them in a file. It also summarizes all the files within the current directory that are written or modified by the command, and copies them for future reference.
+**Saving Output.** The basic idea of ``dgit`` is to monitor the directory with ``inotifywait`` to see what files are modified when the process is running. It summarizes all the files within the current directory that are written or modified by the command, and copies them for future reference. It also greps the contents of the standard output and standard error, and saves them in a file.
 
 **Saving Working Directory.** ``dgit`` is designed to work with ``git``. It creates a temporary commit to save the working directory and resets back so that the commit is not visible to the user. If you are repeatedly trying small changes in the code, it can be troublesome to commit each time you run the code. ``dgit`` can do it for you! However, **remember that ``dgit`` can't recover files in ``.gitignore``.**
 
@@ -29,7 +29,7 @@ These data can be referenced later by ``<log_name>``. Even if you modify some co
 ```bash
 git clone https://github.com/tonycaisy/dgit.git
 cd dgit
-install
+./install
 ```
 
 ## Usage
@@ -41,10 +41,12 @@ dgit init
 This command initializes the current directory as a ``dgit`` repository. It creates a hidden directory ``.dgit`` to store all the logs. You must first run ``git init`` to initialize the directory as a git repository.
 
 ```bash
-dgit log <log_name> <bash_file> [<description>]
+dgit log [options] <log_name> <bash_file> [<description>]
+Options:
+  -d <dir>: where to trace the outputs, default is the whole directory
 ```
 
-This command runs the bash script ``<bash_file>`` and creates a log entry named ``<log_name>`` for future reference.
+This command runs the bash script ``<bash_file>`` and creates a log entry named ``<log_name>`` for future reference. When ``-d`` is specified, only the files within the directory will be traced. The ``<description>`` is an optional string describing the log entry.
 
 ```bash
 dgit ls
