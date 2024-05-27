@@ -4,6 +4,15 @@ if [ -z "$(which git)" ]; then
     echo "Git is not found"
     echo "Please install git via sudo apt install git-all"
     echo "Exiting..."
+    exit 1
+fi
+
+if [ -z "$(which unbuffer)" ]; then
+    echo "Unbuffer is not found"
+    echo "Please install unbuffer via sudo apt install expect"
+    echo "                         or conda install -c conda-forge expect"
+    echo "Exiting..."
+    exit 1
 fi
 
 function install_from_source() {

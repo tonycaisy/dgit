@@ -144,7 +144,7 @@ function dgit_log() {
     monitor_pid=${monitor_PID}
 
     # Start the bash
-    bash $bash_file &> >(tee $log_dir/$DGIT_STDOUT_FILE || true && pkill -SIGTERM -P $monitor_pid) &
+    unbuffer bash $bash_file &> >(tee $log_dir/$DGIT_STDOUT_FILE || true && pkill -SIGTERM -P $monitor_pid) &
     main_pid=$!
     ready_to_exit=1
 
