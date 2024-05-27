@@ -36,6 +36,6 @@ if [ ! -f "dgit" ]; then
 fi
 
 echo "Adding dgit to PATH"
-export PATH=$(pwd):$PATH
-echo "export PATH=$(pwd):\$PATH" >> ~/.bashrc
+export PATH=$PATH:$(pwd)
+echo "export PATH=\$PATH:$(pwd)" >> ~/.bashrc
 echo "Done"
