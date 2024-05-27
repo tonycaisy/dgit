@@ -133,7 +133,6 @@ function dgit_log() {
     ready_to_exit=0
     function interrupt_handler() {
         if [ $ready_to_exit -eq 1 ]; then
-            echo "Force exit"
             pkill -SIGINT -P $main_pid
         fi
     }
