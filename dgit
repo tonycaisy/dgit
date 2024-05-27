@@ -1,11 +1,12 @@
 #!/usr/bin/bash
 
 DGIT_DIR=".dgit"
-DGIT_META_FILE=".dgit_meta"
+DGIT_META=".dgit_meta"
 DGIT_META_COMMIT="git_commit"
 DGIT_META_TIMESTAMP="timestamp"
 DGIT_META_LOG_NAME="log_name"
 DGIT_META_BASH_NAME="bash_name"
+DGIT_META_TRACE_DIR="trace_dir"
 DGIT_META_DESCRIPTION="description"
 DGIT_COMMAND_FILE="dgit_command.sh"
 DGIT_OUTPUT_DIR="dgit_output"
@@ -43,9 +44,35 @@ function dgit_log() {
     _dgit_check_init
 
     if [ "$#" -lt 3 ]; then
-        echo "Usage: dgit log <log_name> <bash_file> [<description>]"
+        echo "Usage: dgit log [options] <log_name> <bash_file> [<description>]"
+        echo "Options:"
+        echo "  -d <dir>: where to trace the outputs, default is the whole directory"
         exit 1
     fi
+
+    # Parse the arguments
+    trace_dir=.
+    while [ ! -z "$2" ]; do
+        case "$2" in
+            -d|--logdir)
+                if [[ -z "$3" ]]; then
+                    echo "Please provide a directory after $2"
+                    exit 1
+                fi
+                trace_dir=$3
+                if [[ $trace_dir == /* ]]; then
+                    if [[ ! $trace_dir == $(pwd)* ]]; then
+                        echo "Log directory must be a subdirectory of the dgit directory"
+                        exit 1
+                    fi
+                    $trace_dir=${trace_dir#$(pwd)/}
+                fi
+                shift;;
+            *)
+                break;;
+        esac
+        shift
+    done
     log_name=$2
     bash_file=$3
     timestamp=$(date +%s)
@@ -92,11 +119,12 @@ function dgit_log() {
         exit 1
     fi
     cp $bash_file $log_dir/$DGIT_COMMAND_FILE
-    meta_file="$log_dir/$DGIT_META_FILE"
+    meta_file="$log_dir/$DGIT_META"
     echo "$DGIT_META_COMMIT: $git_head" > $meta_file
     echo "$DGIT_META_TIMESTAMP: $timestamp" >> $meta_file
     echo "$DGIT_META_LOG_NAME: $log_name" >> $meta_file
     echo "$DGIT_META_BASH_NAME: $bash_file" >> $meta_file
+    echo "$DGIT_META_TRACE_DIR: $trace_dir" >> $meta_file
     if [ ! -z "$4" ]; then
         echo "$DGIT_META_DESCRIPTION: $4" >> $meta_file
     fi
@@ -105,72 +133,42 @@ function dgit_log() {
     ready_to_exit=0
     function interrupt_handler() {
         if [ $ready_to_exit -eq 1 ]; then
-            kill -9 $bash_pid
+            echo "Force exit"
+            pkill -SIGINT -P $main_pid
         fi
     }
     trap interrupt_handler SIGINT
 
-    # Start the strace
-    strace_file="$log_dir/dgit_strace.log"
-    strace -f -y -s 65535 -e write,rename,renameat,renameat2 -o $strace_file bash $bash_file &
-    strace_pid=$! 
-    while [ -z "$bash_pid" ] && kill -0 $strace_pid; do
-        bash_pid=$(ps -ef | grep -E ".* $strace_pid .* bash $bash_file" | grep -v grep | awk '{print $2}' | grep -v $strace_pid)
-    done
+    # Start the monitor
+    coproc monitor { inotifywait -m -r -e modify -e moved_to -q $trace_dir; }
+    monitor_pid=${monitor_PID}
 
-    # Monitor the strace output
-    echo "output_files:" >> $meta_file
-    mkdir -p $log_dir/$DGIT_OUTPUT_DIR
-    function strace_monitor() {
-        tail -n +1 --pid=$strace_pid -F $strace_file 2> /dev/null | while read -r line; do
-            if [[ $line == [0-9]*write* ]]; then
-                file=$(echo $line | grep -oE "^[0-9]+[[:space:]]*write\([0-9]+<[^>]*>" | grep -oE "<[^>]*>" | sed "s/[<>]//g")
-                content=$(echo $line | sed "s/^[^\"]*\"\(.*\)\"[^\"]*$/\1/")
-                if [ -z "$file" ]; then
-                    continue
-                fi
-                if [ -z "$content" ]; then
-                    continue
-                fi
-                if [[ $file == "/dev/pts"* ]]; then
-                    printf "$content" >> $log_dir/$DGIT_OUTPUT_DIR/$DGIT_STDOUT_FILE
-                elif [[ $file == $(pwd)* ]]; then
-                    if [ -z "$(echo "$output_files" | grep -F "$file")" ]; then
-                        output_files="$output_files"$'\n'"$file"
-                        echo $file >> $meta_file
-                    fi
-                fi
-            fi
-            if [[ $line == [0-9]*rename* ]]; then
-                new_file=$(echo $line | sed "s/^[^\"]*\"\([^\"]*\)\"[^\"]*\"\([^\"]*\)\"[^\"]*$/\2/")
-                if [[ ! $new_file == /* ]]; then
-                    new_file=$(pwd)/$new_file
-                fi
-                if [[ $new_file == $(pwd)* ]]; then
-                    if [ -z "$(echo "$output_files" | grep -F "$new_file")" ]; then
-                        output_files="$output_files"$'\n'"$new_file"
-                        echo $new_file >> $meta_file
-                    fi
-                fi
-            fi
-        done
-    }
-    strace_monitor &
-    monitor_pid=$! 
-    while [ -z "$monitor_tail_pid" ] && kill -0 $monitor_pid; do
-        monitor_tail_pid=$(ps -ef | grep -E ".* $monitor_pid .* tail.*" | grep -v grep | awk '{print $2}')
-    done
-
-    # Wait for the strace to finish
+    # Start the bash
+    bash $bash_file &> >(tee $log_dir/$DGIT_STDOUT_FILE || true && pkill -SIGTERM -P $monitor_pid) &
+    main_pid=$!
     ready_to_exit=1
-    wait $strace_pid
-    wait $monitor_pid
+
+    # Record the output files
+    echo "output_files:" >> $meta_file
+    while read -r line; do
+        dir=$(echo $line | awk '{print $1}')
+        if [[ $dir =~ $DGIT_DIR ]]; then
+            continue
+        fi
+        op=$(echo $line | awk '{print $2}')
+        file=$(echo $line | awk '{print $3}')
+        file=$dir/$file
+        if [ -z "$(echo "$output_files" | grep "^$file$")" ]; then
+            output_files="$output_files"$'\n'"$file"
+            echo $file >> $meta_file
+        fi
+    done <&${monitor[0]}
     trap - SIGINT
 
     # Parse the strace log
     echo -e "\n\033[0;32mparsing strace log ...\033[0m"
-    for file in $(cat "$log_dir/$DGIT_META_FILE" | grep -v ":"); do
-        new_file=$(echo $file | sed "s|$(pwd)|$log_dir/$DGIT_OUTPUT_DIR|")
+    for file in $(cat "$log_dir/$DGIT_META" | grep -v ":"); do
+        new_file="$log_dir/$DGIT_OUTPUT_DIR/$file"
         mkdir -p $(dirname $new_file)
         cp --reflink=auto $file $new_file
         chmod 444 $new_file
@@ -179,7 +177,7 @@ function dgit_log() {
 }
 
 function _dgit_get_meta() {
-    meta_file="$DGIT_DIR/$1/$DGIT_META_FILE"
+    meta_file="$DGIT_DIR/$1/$DGIT_META"
     meta_item=DGIT_META_$2
     echo "$(cat $meta_file | grep "${!meta_item}" | sed "s/${!meta_item}: //")"
 }
@@ -233,8 +231,8 @@ function dgit_fout() {
         exit 1
     fi
     log_dir=$(_dgit_get_log_dir_or_exit $2)
-    for file in $(cat "$DGIT_DIR/$log_dir/$DGIT_META_FILE" | grep -v ":"); do
-        stored_file=$(echo $file | sed "s|$(pwd)|$DGIT_DIR/$log_dir/$DGIT_OUTPUT_DIR|")
+    for file in $(cat "$DGIT_DIR/$log_dir/$DGIT_META" | grep -v ":"); do
+        stored_file="$DGIT_DIR/$log_dir/$DGIT_OUTPUT_DIR/$file"
         mkdir -p $(dirname $file)
         cp $prompt --reflink=auto $stored_file $file
     done
