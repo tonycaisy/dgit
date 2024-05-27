@@ -78,3 +78,9 @@ dgit checkout [-f] <log_name>
 ```
 
 This command resets the current working directory to the state when the log entry was created. It will call ``git checkout`` to reset the working directory so you should save all the changes before running this command. It will also copy the bash file back. If ``-f`` is set, it will overwrite the existing bash file without asking.
+
+```bash
+dgit rm <log_name>
+```
+
+This command removes a log entry. It is **not** reversible.

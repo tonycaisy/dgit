@@ -284,6 +284,16 @@ function dgit_checkout() {
     cp $prompt "$DGIT_DIR/$log_dir/$DGIT_COMMAND_FILE" $bash_file
 }
 
+function dgit_rm() {
+    _dgit_check_init
+    if [ -z "$2" ]; then
+        echo "Usage: dgit rm <log_name>"
+        exit 1
+    fi
+    log_dir=$(_dgit_get_log_dir_or_exit $2)
+    rm -rf "$DGIT_DIR/$log_dir"
+}
+
 function dgit_print_help_and_exit() {
     echo "Usage: dgit init|log|ls|stdout|fout|command|checkout"
     echo "  init: initialize dgit, run git init first"
@@ -293,6 +303,7 @@ function dgit_print_help_and_exit() {
     echo "  fout: copy the output files of a log back to the original location"
     echo "  command: print the bash command of a log"
     echo "  checkout: reset to the state when the log was created"
+    echo "  rm: remove a log entry"
     exit 1
 }
 
@@ -314,6 +325,8 @@ elif [ "$1" == "command" ]; then
     dgit_command "$@"
 elif [ "$1" == "checkout" ]; then
     dgit_checkout "$@"
+elif [ "$1" == "rm" ]; then
+    dgit_rm "$@"
 else
     dgit_print_help_and_exit
 fi
