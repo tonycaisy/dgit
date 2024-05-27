@@ -140,6 +140,7 @@ function dgit_log() {
     trap interrupt_handler SIGINT
 
     # Start the monitor
+    mkdir -p $trace_dir
     coproc monitor { inotifywait -m -r -e modify -e moved_to -q $trace_dir; }
     monitor_pid=${monitor_PID}
 
