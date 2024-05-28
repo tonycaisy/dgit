@@ -68,7 +68,7 @@ dgit fout [-f] <log_name>
 This command copies all the files produced by the log entry back to the current directory. If ``-f`` is set, it will overwrite the existing files without asking.
 
 ```bash
-dgit command <loname>
+dgit command <log_name>
 ```
 
 This command prints the command that was run in the log entry.
