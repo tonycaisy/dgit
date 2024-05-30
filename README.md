@@ -45,9 +45,11 @@ This command initializes the current directory as a ``dgit`` repository. It crea
 dgit log [options] <log_name> <bash_file> [<description>]
 Options:
   -d <dir>: where to trace the outputs, default is the whole directory
+  -b log1[,log2,...]: recover the output files before running the bash file
+  -f: force overwrite the output files
 ```
 
-This command runs the bash script ``<bash_file>`` and creates a log entry named ``<log_name>`` for future reference. When ``-d`` is specified, only the files within the directory will be traced. The ``<description>`` is an optional string describing the log entry.
+This command runs the bash script ``<bash_file>`` and creates a log entry named ``<log_name>`` for future reference. The ``<description>`` is an optional string describing the log entry. When ``-d`` is specified, only the files within the directory will be traced. When ``-b`` is specified, the output files of the specified logs will be recovered before running the bash file. If ``-f`` is set, it will overwrite the existing output files without asking.
 
 ```bash
 dgit ls

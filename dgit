@@ -7,6 +7,7 @@ DGIT_META_TIMESTAMP="timestamp"
 DGIT_META_LOG_NAME="log_name"
 DGIT_META_BASH_NAME="bash_name"
 DGIT_META_TRACE_DIR="trace_dir"
+DGIT_META_BASE="base"
 DGIT_META_DESCRIPTION="description"
 DGIT_COMMAND_FILE="dgit_command.sh"
 DGIT_OUTPUT_DIR="dgit_output"
@@ -35,7 +36,7 @@ function _dgit_check_init() {
 }
 
 function _dgit_get_log_dir() {
-    log_dir=$(ls -1 --color=never $DGIT_DIR/ | grep -E "^[0-9]+_$1$" | sort -r | head -n 1)
+    local log_dir=$(ls -1 --color=never $DGIT_DIR/ | grep -E "^[0-9]+_$1$" | sort -r | head -n 1)
     echo $log_dir
 }
 
@@ -47,11 +48,15 @@ function dgit_log() {
         echo "Usage: dgit log [options] <log_name> <bash_file> [<description>]"
         echo "Options:"
         echo "  -d <dir>: where to trace the outputs, default is the whole directory"
+        echo "  -b log1[,log2,...]: recover the output files before running the bash file"
+        echo "  -f: force overwrite the output files"
         exit 1
     fi
 
     # Parse the arguments
     trace_dir=.
+    base_log_names=
+    force=
     while [ ! -z "$2" ]; do
         case "$2" in
             -d|--logdir)
@@ -68,6 +73,16 @@ function dgit_log() {
                     $trace_dir=${trace_dir#$(pwd)/}
                 fi
                 shift;;
+            -b|--base)
+                if [[ -z "$3" ]]; then
+                    echo "Please provide log name(s) after $2"
+                    exit 1
+                fi
+                raw_base_log_names=$3
+                base_log_names=$(echo $3 | tr "," "\n")
+                shift;;
+            -f|--force)
+                force=-f;;
             *)
                 break;;
         esac
@@ -76,6 +91,11 @@ function dgit_log() {
     log_name=$2
     bash_file=$3
     timestamp=$(date +%s)
+
+    # Recover the output files
+    for base_log_name in $base_log_names; do
+        dgit fout $force $base_log_name
+    done
 
     # Get the log dir name
     if [[ ! $log_name =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
@@ -125,6 +145,7 @@ function dgit_log() {
     echo "$DGIT_META_LOG_NAME: $log_name" >> $meta_file
     echo "$DGIT_META_BASH_NAME: $bash_file" >> $meta_file
     echo "$DGIT_META_TRACE_DIR: $trace_dir" >> $meta_file
+    echo "$DGIT_META_BASE: $raw_base_log_names" >> $meta_file
     if [ ! -z "$4" ]; then
         echo "$DGIT_META_DESCRIPTION: $4" >> $meta_file
     fi
@@ -185,16 +206,16 @@ function _dgit_get_meta() {
 function dgit_ls() {
     _dgit_check_init
     echo "-------------------------------------------------------------------------------------"
-    echo -e "Timestamp\t\t| Log Name\t| Commit\t| Bash File\t| Description"
+    echo -e "Timestamp\t\t| Log Name\t| Bases\t| Bash File\t| Description"
     echo "-------------------------------------------------------------------------------------"
     for log_dir in $(ls -1 $DGIT_DIR/); do
         timestamp=$(_dgit_get_meta $log_dir TIMESTAMP)
         timestamp=$(date -d @$timestamp +"%Y-%m-%d %H:%M:%S")
         log_name=$(_dgit_get_meta $log_dir LOG_NAME)
-        commit_hash=$(_dgit_get_meta $log_dir COMMIT | head -c 8)
+        bases=$(_dgit_get_meta $log_dir BASE)
         bash_file=$(_dgit_get_meta $log_dir BASH_NAME)
         description=$(_dgit_get_meta $log_dir DESCRIPTION)
-        echo -e "$timestamp\t| $log_name\t| $commit_hash\t| $bash_file\t| $description"
+        echo -e "$timestamp\t| $log_name\t| $bases\t| $bash_file\t| $description"
     done
     echo "-------------------------------------------------------------------------------------"
 }
@@ -205,7 +226,6 @@ function _dgit_get_log_dir_or_exit() {
         echo "Log name $1 not found"
         exit 1
     fi
-    echo $log_dir
 }
 
 function dgit_stdout() {
@@ -214,7 +234,7 @@ function dgit_stdout() {
         echo "Usage: dgit stdout <log_name>"
         exit 1
     fi
-    log_dir=$(_dgit_get_log_dir_or_exit $2)
+    _dgit_get_log_dir_or_exit $2
     cat "$DGIT_DIR/$log_dir/$DGIT_STDOUT_FILE"
 }
 
@@ -230,7 +250,7 @@ function dgit_fout() {
         echo "  -f: force overwrite"
         exit 1
     fi
-    log_dir=$(_dgit_get_log_dir_or_exit $2)
+    _dgit_get_log_dir_or_exit $2
     for file in $(cat "$DGIT_DIR/$log_dir/$DGIT_META" | grep -v ":"); do
         stored_file="$DGIT_DIR/$log_dir/$DGIT_OUTPUT_DIR/$file"
         mkdir -p $(dirname $file)
@@ -244,7 +264,7 @@ function dgit_command() {
         echo "Usage: dgit command <log_name>"
         exit 1
     fi
-    log_dir=$(_dgit_get_log_dir_or_exit $2)
+    _dgit_get_log_dir_or_exit $2
     bash_file=$(_dgit_get_meta $log_dir BASH_NAME)
     echo "-------------------------------------------------------------------------------------"
     echo "Bash file: $bash_file"
@@ -264,7 +284,7 @@ function dgit_checkout() {
         echo "  -f: force overwrite"
         exit 1
     fi
-    log_dir=$(_dgit_get_log_dir_or_exit $2)
+    _dgit_get_log_dir_or_exit $2
     commit_hash=$(_dgit_get_meta $log_dir COMMIT)
     if [ -z "$commit_hash" ]; then
         echo "Failed to find commit hash"
@@ -290,7 +310,7 @@ function dgit_rm() {
         echo "Usage: dgit rm <log_name>"
         exit 1
     fi
-    log_dir=$(_dgit_get_log_dir_or_exit $2)
+    _dgit_get_log_dir_or_exit $2
     rm -rf "$DGIT_DIR/$log_dir"
 }
 
