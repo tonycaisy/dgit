@@ -200,7 +200,7 @@ function dgit_log() {
 function _dgit_get_meta() {
     meta_file="$DGIT_DIR/$1/$DGIT_META"
     meta_item=DGIT_META_$2
-    echo "$(cat $meta_file | grep "${!meta_item}" | sed "s/${!meta_item}: //")"
+    echo "$(cat $meta_file | grep "^${!meta_item}:" | sed "s/${!meta_item}: //")"
 }
 
 function dgit_ls() {
