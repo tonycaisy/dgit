@@ -33,3 +33,5 @@ fi
 echo "Adding dgit to PATH"
 echo "export PATH=\$PATH:$(pwd)" >> ~/.bashrc
 echo "Done"
+echo "You may need to source ~/.bashrc to make it effective"
+
